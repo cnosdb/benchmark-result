@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>A Benchmark For CnosDB</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="icon" href="https://docs.cnosdb.com/favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --color: black;
+            --title-color: black;
+            --background-color: white;
+
+            --link-color: #08F;
+            --link-hover-color: #F40;
+
+            --selector-text-color: black;
+            --selector-active-text-color: black;
+            --selector-background-color: #EEE;
+            --selector-active-background-color: #FFCB80;
+            --selector-hover-text-color: black;
+            --selector-hover-background-color: #FDB;
+
+            --summary-every-other-row-color: #F8F8F8;
+            --highlight-color: #EEE;
+            --bar-color: #FFCB80;
+
+            --tooltip-text-color: white;
+            --tooltip-background-color: black;
+
+            --nothing-selected-color: #CCC;
+            --shadow-color: grey;
+        }
+
+        [data-theme="dark"] {
+            --color: #CCC;
+            --title-color: white;
+            --background-color: #04293A;
+
+            --link-color: #8CF;
+            --link-hover-color: #FFF;
+
+            --selector-text-color: white;
+            --selector-background-color: #444;
+            --selector-active-text-color: white;
+            --selector-active-background-color: #088;
+            --selector-hover-text-color: black;
+            --selector-hover-background-color: white;
+
+            --summary-every-other-row-color: #042e41;
+            --highlight-color: #064663;
+            --bar-color: #088;
+
+            --tooltip-text-color: white;
+            --tooltip-background-color: #444;
+
+            --nothing-selected-color: #666;
+            --shadow-color: black;
+        }
+
+        html, body {
+            color: var(--color);
+            background-color: var(--background-color);
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            padding: 1% 3% 0 3%;
+        }
+
+        h1 {
+            color: var(--title-color);
+        }
+
+        table {
+             border-spacing: 1px;
+        }
+
+        .stick-left {
+            position: sticky;
+            left: 0px;
+        }
+
+        .selectors-container {
+            padding: 2rem 0 2rem 0;
+            user-select: none;
+        }
+
+        .selectors-container th {
+            text-align: left;
+            vertical-align: top;
+            white-space: nowrap;
+            padding-top: 0.5rem;
+            padding-right: 1rem;
+        }
+
+        .selector {
+            display: inline-block;
+            margin-left: 0.1rem;
+            padding: 0.2rem 0.5rem 0.2rem 0.5rem;
+            background: var(--selector-background-color);
+            color: var(--selector-text-color);
+            border: 0.2rem solid var(--background-color);
+            border-radius: 0.5rem;
+        }
+
+        .selector-active {
+            color: var(--selector-active-text-color);
+            background: var(--selector-active-background-color);
+        }
+
+        a, a:visited {
+            text-decoration: none;
+            color: var(--link-color);
+            cursor: pointer;
+        }
+
+        a:hover {
+            color: var(--link-hover-color);
+        }
+
+        .selector:hover {
+            color: var(--selector-hover-text-color) !important;
+            background: var(--selector-background-color);
+        }
+
+        .selector-active:hover {
+            background: var(--selector-hover-background-color);
+        }
+
+        #summary tr:nth-child(odd) {
+            background: var(--summary-every-other-row-color);
+        }
+
+        .summary-name {
+            white-space: nowrap;
+            text-align: right;
+            padding-right: 1rem;
+        }
+
+        .summary-bar-cell {
+            width: 100%;
+        }
+
+        .summary-bar {
+            height: 1rem;
+            background: var(--bar-color);
+            border-radius: 0 0.2rem 0.2rem 0;
+        }
+
+        .summary-number {
+            font-family: monospace;
+            text-align: right;
+            padding-left: 1rem;
+            white-space: nowrap;
+        }
+
+        th {
+            padding-bottom: 0.5rem;
+        }
+
+        .th-entry-hilite {
+            background: var(--highlight-color);
+            font-weight: bold;
+        }
+
+        .summary-row:hover, .summary-row-hilite {
+            background: var(--highlight-color) !important;
+            font-weight: bold;
+        }
+
+        #details {
+            padding-bottom: 1rem;
+        }
+
+        #details th {
+            vertical-align: bottom;
+            white-space: pre;
+        }
+
+        #details td {
+            white-space: pre;
+            font-family: monospace;
+            text-align: right;
+            padding: 0.1rem 0.5rem 0.1rem 0.5rem;
+        }
+
+        .shadow:hover {
+            box-shadow: 0 0 1rem var(--shadow-color);
+            position: relative;
+        }
+
+        #nothing-selected {
+            display: none;
+            font-size: 32pt;
+            font-weight: bold;
+            color: var(--nothing-selected-color);
+        }
+
+        .note {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip {
+            position: absolute;
+            bottom: calc(100% + 0.5rem);
+            visibility: hidden;
+            background-color: var(--tooltip-background-color);
+            color: var(--tooltip-text-color);
+            box-shadow: 0 0 1rem var(--shadow-color);
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            z-index: 1;
+            text-align: left;
+            white-space: normal;
+        }
+
+        .tooltip-result {
+            left: calc(50% - 0.25rem);
+            width: 20rem;
+            margin-left: -10rem;
+        }
+
+        .tooltip-query {
+            left: 0;
+            width: 40rem;
+            margin-left: -3rem;
+        }
+
+        .note:hover .tooltip {
+            visibility: visible;
+        }
+
+        .tooltip::after {
+            content: " ";
+            position: absolute;
+            top: 100%;
+            border-width: 0.5rem;
+            border-style: solid;
+            border-color: var(--tooltip-background-color) transparent transparent transparent;
+        }
+
+        .tooltip-result::after {
+            left: 50%;
+            margin-left: -1rem;
+        }
+
+        .tooltip-query::after {
+            left: 3rem;
+            margin-left: 0.5rem;
+        }
+
+        .nowrap {
+            text-wrap: none;
+        }
+
+        .themes {
+            float: right;
+            font-size: 200%;
+            cursor: pointer;
+        }
+
+        #toggle-dark, #toggle-light {
+            padding-right: 0.5rem;
+            cursor: pointer;
+        }
+
+        #toggle-dark:hover, #toggle-light:hover {
+            display: inline-block;
+            transform: translate(1px, 1px);
+            filter: brightness(125%);
+        }
+    </style>
+    <script type="text/javascript">
+
+const queries = [
+"SELECT COUNT(*) FROM hits;",
+"SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0;",
+"SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits;",
+"SELECT AVG(UserID) FROM hits;",
+"SELECT COUNT(DISTINCT UserID) FROM hits;",
+"SELECT COUNT(DISTINCT SearchPhrase) FROM hits;",
+"SELECT MIN(EventDate), MAX(EventDate) FROM hits;",
+"SELECT AdvEngineID, COUNT(*) FROM hits WHERE AdvEngineID <> 0 GROUP BY AdvEngineID ORDER BY COUNT(*) DESC;",
+"SELECT RegionID, COUNT(DISTINCT UserID) AS u FROM hits GROUP BY RegionID ORDER BY u DESC LIMIT 10;",
+"SELECT RegionID, SUM(AdvEngineID), COUNT(*) AS c, AVG(ResolutionWidth), COUNT(DISTINCT UserID) FROM hits GROUP BY RegionID ORDER BY c DESC LIMIT 10;",
+"SELECT MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhoneModel ORDER BY u DESC LIMIT 10;",
+"SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC LIMIT 10;",
+"SELECT SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;",
+"SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10;",
+"SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, SearchPhrase ORDER BY c DESC LIMIT 10;",
+"SELECT UserID, COUNT(*) FROM hits GROUP BY UserID ORDER BY COUNT(*) DESC LIMIT 10;",
+"SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;",
+"SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LIMIT 10;",
+"SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10;",
+"SELECT UserID FROM hits WHERE UserID = 435090932899640449;",
+"SELECT COUNT(*) FROM hits WHERE URL LIKE '%google%';",
+"SELECT SearchPhrase, MIN(URL), COUNT(*) AS c FROM hits WHERE URL LIKE '%google%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;",
+"SELECT SearchPhrase, MIN(URL), MIN(Title), COUNT(*) AS c, COUNT(DISTINCT UserID) FROM hits WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10;",
+"SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 10;",
+"SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime LIMIT 10;",
+"SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY SearchPhrase LIMIT 10;",
+"SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime, SearchPhrase LIMIT 10;",
+"SELECT CounterID, AVG(length(URL)) AS l, COUNT(*) AS c FROM hits WHERE URL <> '' GROUP BY CounterID HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;",
+"SELECT REGEXP_REPLACE(Referer, '^https?://(?:www\\.)?([^/]+)/.*$', '\\1') AS k, AVG(length(Referer)) AS l, COUNT(*) AS c, MIN(Referer) FROM hits WHERE Referer <> '' GROUP BY k HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25;",
+"SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), SUM(ResolutionWidth + 2), SUM(ResolutionWidth + 3), ..., SUM(ResolutionWidth + 89) FROM hits;",
+"SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10;",
+"SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;",
+"SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10;",
+"SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10;",
+"SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;",
+"SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10;",
+"SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND URL <> '' GROUP BY URL ORDER BY PageViews DESC LIMIT 10;",
+"SELECT Title, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND Title <> '' GROUP BY Title ORDER BY PageViews DESC LIMIT 10;",
+"SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND IsLink <> 0 AND IsDownload = 0 GROUP BY URL ORDER BY PageViews DESC LIMIT 10 OFFSET 1000;",
+"SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '' END AS Src, URL AS Dst, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst ORDER BY PageViews DESC LIMIT 10 OFFSET 1000;",
+"SELECT URLHash, EventDate, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND TraficSourceID IN (-1, 6) AND RefererHash = 3594120000172545465 GROUP BY URLHash, EventDate ORDER BY PageViews DESC LIMIT 10 OFFSET 100;",
+"SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND DontCountHits = 0 AND URLHash = 2868770270353813622 GROUP BY WindowClientWidth, WindowClientHeight ORDER BY PageViews DESC LIMIT 10 OFFSET 10000;",
+"SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10 OFFSET 1000;",
+];
+
+const data = [
+{"system":"CnosDB(PR#0b8d521)","comment":"TODO","date":"2023-10-11","machine":"x86_64","cluster_size":1,"tags":["Rust","time-series"],"load_time":0.218807243,"data_size":14779976446,"result":[[0.638,0.074,0.112,0.102,0.096,0.097],[0.98,0.29,0.284,0.294,0.319,0.237],[1.699,0.384,0.333,0.381,0.341,0.297],[2.313,0.404,0.389,0.391,0.366,0.417],[5.879,5.257,5.127,5.249,5.234,5.204],[4.658,3.269,3.143,3.083,3.111,3.256],[0.751,0.283,0.299,0.236,0.244,0.271],[0.954,0.317,0.263,0.236,0.306,0.266],[6.584,6.201,6.272,6.145,6.147,6.197],[7.092,5.544,5.463,5.475,5.464,5.711],[3.063,1.008,0.922,0.967,0.871,0.952],[3.136,1.112,0.972,0.982,0.943,0.935],[4.603,3.624,3.445,3.548,3.587,3.411],[8.956,6.652,6.621,6.639,6.634,6.671],[4.908,3.907,3.964,3.983,3.955,3.815],[6.825,6.507,6.479,6.417,6.536,6.505],[10.569,9.776,9.786,9.887,9.682,9.764],[9.465,8.582,8.743,8.693,8.733,8.715],[21.044,19.297,19.383,19.537,19.232,19.342],[2.219,0.405,0.357,0.358,0.373,0.325],[14.634,3.583,3.652,3.522,3.663,3.446],[16.513,4.18,4.149,4.137,3.944,4.182],[32.214,8.449,8.524,8.554,8.541,8.584],[79.011,22.966,22.981,23.364,22.738,23.147],[5.322,1.321,1.305,1.285,1.235,1.27],[3.02,1.066,1.113,1.101,1.025,1.038],[5.025,1.285,1.233,1.217,1.243,1.242],[15.612,6.039,5.897,5.823,5.944,5.932],[20.69,19.027,19.515,19.439,19.152,19.373],[1.435,1.144,1.284,1.137,1.168,1.279],[7.299,4.016,4.016,3.959,3.992,3.957],[12.037,5.898,6.03,6.109,6.124,6.143],[null,null,null,null,null,null],[20.665,15.405,15.656,15.491,15.273,15.09],[21.168,17.145,17.087,17.071,16.986,17.089],[7.207,6.805,6.716,6.736,6.774,6.833],[1.435,1.02,1.085,1.147,1.112,1.026],[0.783,0.599,0.589,0.575,0.509,0.729],[0.939,0.543,0.586,0.454,0.51,0.547],[2.392,1.84,1.933,1.764,1.815,1.779],[0.418,0.361,0.378,0.309,0.355,0.337],[0.428,0.379,0.307,0.333,0.305,0.346],[0.421,0.402,0.391,0.285,0.33,0.345]],"source":"./results/hits/0b8d521.json"}
+,{"system":"CnosDB(4.20_e1aa424)","comment":"TODO","date":"2023-04-20","machine":"x86_64","cluster_size":1,"tags":["Rust","time-series"],"load_time":0.164083001,"data_size":14779976446,"result":[[0.491,0.075,0.113,0.069,0.107,0.109],[1.1,0.265,0.244,0.297,0.244,0.283],[1.632,0.426,0.398,0.322,0.32,0.338],[2.309,0.352,0.351,0.345,0.358,0.346],[6.2,5.576,5.6,5.514,5.466,5.55],[4.449,3.446,3.347,3.303,3.345,3.471],[0.835,0.295,0.291,0.251,0.228,0.29],[0.817,0.282,0.253,0.254,0.272,0.239],[6.818,6.465,6.443,6.466,6.473,6.419],[7.334,5.928,5.974,6.018,6.08,6.151],[2.865,0.987,0.962,0.897,0.851,0.845],[3.129,0.974,1.052,1.078,1.035,1.048],[4.756,3.729,3.838,3.688,3.734,3.765],[9.064,7.002,7.012,7.158,6.866,7.073],[5.248,4.309,4.227,4.174,4.228,4.266],[7.244,7.088,6.98,7.068,7.076,7.123],[11.074,10.416,10.402,10.524,10.339,10.48],[9.88,9.399,9.454,9.339,9.365,9.405],[21.981,20.628,20.896,20.988,20.982,20.953],[2.174,0.399,0.322,0.302,0.316,0.347],[14.645,3.605,3.623,3.784,3.675,3.793],[16.911,4.224,4.333,4.09,4.203,4.22],[32.46,9.228,9.32,9.055,9.189,9.164],[79.416,24.832,25.065,24.841,24.971,24.097],[5.196,1.287,1.305,1.236,1.323,1.282],[2.896,1.07,1.045,1.018,1.084,1.084],[5.235,1.369,1.333,1.313,1.283,1.293],[15.201,6.006,6.32,6.074,5.945,5.999],[23.5,22.431,22.345,21.78,22.097,22.323],[1.443,1.129,1.206,1.168,1.231,1.135],[8.198,5.741,5.71,5.593,5.646,5.61],[13.67,8.436,8.52,8.376,8.417,8.561],[null,null,null,null,null,null],[21.116,16.016,16.19,15.938,16.09,15.937],[21.703,17.747,17.83,17.699,17.652,17.674],[7.737,7.274,7.404,7.4,7.362,7.281],[1.59,1.005,0.977,1.05,1.012,1.056],[0.89,0.549,0.629,0.63,0.584,0.584],[0.813,0.489,0.584,0.467,0.495,0.485],[2.745,1.848,1.841,2.073,1.947,1.989],[0.578,0.304,0.301,0.332,0.338,0.3],[0.372,0.333,0.25,0.267,0.267,0.246],[0.39,0.341,0.353,0.364,0.271,0.377]],"source":"./results/hits/4.20_e1aa424.json"}
+,{"system":"CnosDB(v2.3.0)","comment":"TODO","date":"2023-05-09","machine":"x86_64","cluster_size":1,"tags":["Rust","time-series"],"load_time":0.207586154,"data_size":14779976446,"result":[[0.654,0.115,0.061,0.058,0.068,0.092],[0.982,0.293,0.295,0.264,0.241,0.292],[1.665,0.359,0.352,0.377,0.348,0.35],[2.424,0.42,0.341,0.355,0.324,0.408],[6.098,5.603,5.566,5.533,5.42,5.791],[4.697,3.682,3.499,3.702,3.408,3.298],[0.803,0.291,0.239,0.243,0.277,0.233],[0.769,0.249,0.28,0.223,0.239,0.235],[6.841,6.386,6.5,6.417,6.378,6.309],[7.264,6.078,5.93,6.364,6.364,6.229],[3.025,0.885,0.885,0.842,0.927,0.899],[3.152,1.017,1.049,1.057,1.02,1.006],[4.67,3.692,3.675,3.758,3.825,3.642],[9.261,6.901,6.921,6.94,6.946,6.895],[5.224,4.217,4.249,4.205,4.169,4.111],[7.277,7.065,6.989,7.027,7.024,6.976],[11.177,10.272,10.407,10.277,10.247,10.358],[10.056,9.15,9.457,9.355,9.399,9.434],[22.061,20.736,21.163,20.871,20.825,21.053],[2.163,0.404,0.302,0.315,0.315,0.349],[15.198,3.721,3.884,3.845,3.633,3.647],[17.115,4.297,4.166,4.31,4.267,4.239],[33.626,9.147,9.176,9.41,9.279,9.399],[79.336,25.342,24.144,24.043,23.266,24.05],[5.158,1.253,1.229,1.18,1.281,1.287],[3.083,1.017,1.032,1.017,0.986,1.032],[5.488,1.29,1.285,1.291,1.295,1.254],[14.968,6.219,6.364,5.992,6.035,6.177],[23.667,22.056,22.145,22.272,21.989,22.546],[1.534,1.127,1.267,1.212,1.13,1.149],[7.908,5.689,5.748,5.7,5.744,5.623],[13.542,8.616,8.59,8.615,8.537,8.664],[null,null,null,null,null,null],[20.524,16.061,16.061,16.063,15.893,15.927],[21.576,17.804,17.655,17.628,17.689,17.615],[7.788,7.303,7.326,7.42,7.325,7.255],[1.534,1.143,1.071,1.143,1.07,1.15],[0.713,0.585,0.608,0.624,0.604,0.599],[0.835,0.523,0.465,0.523,0.491,0.528],[2.604,2.116,2.039,2.05,1.92,1.785],[0.584,0.38,0.35,0.357,0.391,0.352],[0.536,0.309,0.3,0.307,0.232,0.294],[0.506,0.308,0.336,0.385,0.351,0.278]],"source":"./results/hits/v2.3.0.json"}
+,{"system":"CnosDB(v2.3.1)","comment":"TODO","date":"2023-06-21","machine":"x86_64","cluster_size":1,"tags":["Rust","time-series"],"load_time":0.119718495,"data_size":14779976446,"result":[[0.565,0.08,0.071,0.09,0.114,0.104],[1.035,0.267,0.242,0.238,0.269,0.287],[1.592,0.371,0.415,0.358,0.405,0.344],[2.366,0.419,0.353,0.344,0.38,0.408],[6.143,5.525,5.463,5.38,5.447,5.482],[4.519,3.42,3.413,3.396,3.519,3.392],[0.895,0.298,0.302,0.235,0.243,0.255],[0.874,0.304,0.339,0.257,0.275,0.269],[6.856,6.462,6.339,6.52,6.406,6.451],[7.446,6.184,6.079,6.311,5.955,5.985],[3.218,0.937,0.894,0.886,0.874,0.85],[3.118,1.075,1.046,1.016,0.98,0.989],[4.628,3.819,3.763,3.755,3.775,3.696],[9.082,6.915,7.007,6.922,6.998,6.888],[5.345,4.282,4.159,4.149,4.224,4.18],[7.183,7.01,6.891,6.998,6.943,7.088],[11.194,10.461,10.483,10.421,10.321,10.353],[9.979,9.342,9.37,9.321,9.419,9.466],[22.005,20.843,20.783,20.747,21.051,20.838],[2.217,0.344,0.348,0.355,0.331,0.327],[14.664,3.618,3.766,3.744,3.861,3.801],[17.075,4.27,4.272,4.31,4.411,4.227],[32.459,9.311,9.247,9.461,9.28,9.132],[79.345,25.624,24.724,24.884,24.961,24.752],[5.362,1.316,1.284,1.295,1.281,1.245],[2.893,1.157,1.039,1.048,1.078,1.071],[5.093,1.311,1.267,1.191,1.227,1.223],[15.17,6.407,6.125,6.17,6.271,6.326],[23.468,22.081,22.584,22.35,22.273,22.527],[1.502,1.133,1.211,1.216,1.203,1.161],[7.956,5.754,5.684,5.719,5.782,5.68],[13.246,8.539,8.565,8.467,8.561,8.361],[null,null,null,null,null,null],[20.775,16.006,15.953,15.895,15.998,15.942],[21.504,17.915,17.809,17.906,17.639,17.603],[7.868,7.367,7.422,7.328,7.433,7.409],[1.51,1.01,1.225,1.07,1.115,0.953],[0.673,0.55,0.633,0.589,0.651,0.598],[0.848,0.619,0.502,0.468,0.551,0.556],[2.32,2.028,2.103,1.881,1.853,1.871],[0.579,0.331,0.325,0.301,0.341,0.294],[0.435,0.324,0.258,0.285,0.259,0.349],[0.485,0.286,0.377,0.397,0.404,0.322]],"source":"./results/hits/v2.3.1.json"}
+,{"system":"CnosDB(v2.3.2)","comment":"TODO","date":"2023-08-03","machine":"x86_64","cluster_size":1,"tags":["Rust","time-series"],"load_time":0.139032593,"data_size":14779976446,"result":[[0.464,0.131,0.087,0.088,0.055,0.062],[1.068,0.25,0.263,0.278,0.316,0.256],[1.591,0.422,0.368,0.346,0.375,0.355],[2.327,0.437,0.388,0.35,0.419,0.405],[5.833,5.277,5.258,5.155,5.214,5.204],[4.438,3.256,3.149,3.136,3.22,3.267],[0.796,0.305,0.251,0.23,0.247,0.284],[0.858,0.309,0.249,0.287,0.295,0.263],[6.611,6.326,6.249,6.181,6.21,6.205],[6.818,5.451,5.477,5.453,5.578,5.905],[3.103,0.97,0.871,0.903,0.853,0.873],[3.196,1.026,0.967,1.032,1.039,1.009],[4.45,3.564,3.512,3.487,3.471,3.48],[9.033,6.601,6.63,6.671,6.601,6.626],[5.001,3.893,3.84,3.891,3.89,3.872],[6.805,6.483,6.408,6.491,6.509,6.392],[10.554,9.938,9.863,9.743,9.848,9.839],[9.401,8.819,8.681,8.782,8.732,8.629],[20.461,19.377,19.555,19.238,19.424,19.41],[2.156,0.389,0.297,0.337,0.346,0.338],[14.775,3.843,3.773,3.731,3.804,3.745],[16.867,4.245,4.319,4.265,4.332,4.318],[31.841,9.007,8.578,8.71,8.862,9.053],[78.678,24.254,24.015,23.632,24.566,23.448],[5.545,1.362,1.258,1.353,1.263,1.384],[2.914,1.047,0.974,1.077,0.963,1.074],[5.652,1.364,1.336,1.281,1.285,1.264],[15.462,6.241,6.046,6.043,6.19,6.292],[21.252,20.046,19.82,19.836,19.565,19.867],[1.436,1.17,1.183,1.125,1.128,1.067],[7.204,4.144,3.953,4.066,4.102,4.07],[11.884,6.09,6.06,6.057,6.12,6.177],[null,null,null,null,null,null],[20.593,15.394,15.292,15.285,15.225,15.423],[21.215,17.242,17.269,16.939,17.102,17.24],[7.422,7.075,6.929,6.987,6.953,7.035],[1.48,1.117,1.101,1.013,1.236,1.13],[0.736,0.604,0.619,0.585,0.604,0.562],[0.863,0.521,0.466,0.618,0.492,0.553],[2.328,1.865,1.872,1.814,1.916,1.944],[0.636,0.354,0.312,0.347,0.375,0.348],[0.502,0.36,0.317,0.292,0.286,0.245],[0.578,0.319,0.34,0.353,0.418,0.383]],"source":"./results/hits/v2.3.2.json"}
+]; // end of data
+
+const additional_data_size_points = [
+{"fake": true, "system": "hits.tsv", "data_size": 74807831229},
+{"fake": true, "system": "hits.csv", "data_size": 81136059858},
+{"fake": true, "system": "hits.json", "data_size": 232733025002},
+{"fake": true, "system": "hits.parquet", "data_size": 14779976446},
+{"fake": true, "system": "hits.tsv.gz", "data_size": 16298506510},
+{"fake": true, "system": "hits.csv.gz", "data_size": 16608960810},
+{"fake": true, "system": "hits.json.gz", "data_size": 23728268670}
+];
+    </script>
+</head>
+<body>
+
+<div class="header stick-left">
+    <span class="nowrap themes"><span id="toggle-dark">🌚</span><span id="toggle-light">🌞</span></span>
+    <h1>A Benchmark For CnosDB</h1>
+    <!-- <a href="https://github.com/ClickHouse/ClickBench/">Methodology</a> | <a href="https://github.com/ClickHouse/ClickBench/">Reproduce and Validate the Results</a> | <a href="https://github.com/ClickHouse/ClickBench/">Add a System</a> | <a href="https://github.com/ClickHouse/ClickBench/">Report Mistake</a> | <a href="https://benchmark.clickhouse.com/hardware/">Hardware Benchmark</a> | <a href="https://benchmark.clickhouse.com/versions/">Versions Benchmark</a> -->
+</div>
+
+<table class="selectors-container stick-left">
+    <tr>
+        <th>System: </th>
+        <td id="selectors_system">
+            <a id="select-all-systems" class="selector selector-active">All</a>
+        </td>
+    </tr>
+    <tr>
+        <th>Type: </th>
+        <td id="selectors_type">
+            <a id="select-all-types" class="selector selector-active">All</a>
+        </td>
+    </tr>
+    <tr>
+        <th>Machine: </th>
+        <td id="selectors_machine">
+            <a id="select-all-machines" class="selector selector-active">All</a>
+        </td>
+    </tr>
+    <tr>
+        <th>Cluster size: </th>
+        <td id="selectors_cluster_size">
+            <a id="select-all-cluster-sizes" class="selector selector-active">All</a>
+        </td>
+    </tr>
+    <tr>
+        <th>Metric: </th>
+        <td id="selectors_run">
+            <a class="selector" id="selector-metric-cold">Cold Run</a>
+            <a class="selector" id="selector-metric-hot">Hot Run</a>
+            <a class="selector" id="selector-metric-load">Load Time</a>
+            <a class="selector" id="selector-metric-size">Storage Size</a>
+        </td>
+    </tr>
+</table>
+
+<table class="stick-left comparison">
+    <thead>
+        <tr>
+            <th class="summary-name">
+                System &amp; Machine
+            </th>
+            <th colspan="2">
+                Relative <span id="time-or-size">time</span> (lower is better)
+            </th>
+        </tr>
+    </thead>
+    <tbody id="summary">
+    </tbody>
+</table>
+
+<div id="nothing-selected" class="stick-left">Nothing selected</div>
+
+<div class="stick-left comparison">
+    <h2>Detailed Comparison</h2>
+</div>
+
+<table id="details">
+    <thead>
+        <tr id="details_head">
+        </tr>
+    </thead>
+    <tbody id="details_body">
+    </tbody>
+</table>
+
+<script type="text/javascript">
+
+const constant_time_add = 0.01;
+const missing_result_penalty = 2;
+const missing_result_time = 300;
+
+let selectors = {
+    "system": {},
+    "type": {},
+    "machine": {},
+    "cluster_size": {},
+    "metric": "hot",
+    "queries": [],
+};
+
+let theme = 'light';
+
+function setTheme(new_theme) {
+    theme = new_theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    window.localStorage.setItem('theme', theme);
+    render();
+}
+
+document.getElementById('toggle-light').addEventListener('click', e => setTheme('light'));
+document.getElementById('toggle-dark').addEventListener('click', e => setTheme('dark'));
+
+let new_theme = window.localStorage.getItem('theme');
+if (new_theme && new_theme != theme) {
+    setTheme(new_theme);
+}
+
+/// Generate selectors
+
+let systems = document.getElementById('selectors_system');
+let types = document.getElementById('selectors_type');
+let machines = document.getElementById('selectors_machine');
+let cluster_sizes = document.getElementById('selectors_cluster_size');
+
+let unique_systems = [... new Set(data.map(elem => elem.system))];
+
+function toggle(e, elem, selectors_map) {
+    selectors_map[elem] = !selectors_map[elem];
+    e.target.className = selectors_map[elem] ? 'selector selector-active' : 'selector';
+    render();
+    updateHistory();
+}
+
+function toggleAll(e, selectors_map) {
+    const new_value = Object.keys(selectors_map).filter(k => selectors_map[k]).length * 2 < Object.keys(selectors_map).length;
+    [...e.target.parentElement.querySelectorAll('a')].map(
+        elem => { elem.className = new_value ? 'selector selector-active' : 'selector' });
+
+    Object.keys(selectors_map).map(k => { selectors_map[k] = new_value });
+    render();
+    updateHistory();
+}
+
+unique_systems.map(elem => {
+    let selector = document.createElement('a');
+    selector.className = 'selector selector-active';
+    selector.appendChild(document.createTextNode(elem));
+    systems.appendChild(selector);
+    if (!(elem in selectors.system)) { selectors.system[elem] = data.some(entry => entry.system == elem && !entry.hide); }
+    selector.addEventListener('click', e => toggle(e, elem, selectors.system));
+
+    /// Highlighting summary rows and table columns on hovering over the system selector.
+    selector.addEventListener('mouseover', e => {
+        [...document.querySelectorAll('.summary-row')].map(row => {
+            row.className = row.dataset.system == elem ? 'summary-row summary-row-hilite' : 'summary-row' });
+        [...document.querySelectorAll('.th-entry')].map(th => {
+            th.className = th.dataset.system == elem ? 'th-entry th-entry-hilite' : 'th-entry' });
+    });
+    selector.addEventListener('mouseout', e => {
+        [...document.querySelectorAll('.summary-row')].map(row => { row.className = 'summary-row' });
+        [...document.querySelectorAll('.th-entry')].map(row => { row.className = 'th-entry' });
+    });
+});
+
+[... new Set(data.map(elem => elem.tags).flat())].map(elem => {
+    let selector = document.createElement('a');
+    selector.className = 'selector selector-active';
+    selector.appendChild(document.createTextNode(elem));
+    types.appendChild(selector);
+    if (!(elem in selectors.type)) { selectors.type[elem] = true; }
+    selector.addEventListener('click', e => toggle(e, elem, selectors.type));
+});
+
+[... new Set(data.map(elem => elem.machine))].map(elem => {
+    let selector = document.createElement('a');
+    selector.className = 'selector selector-active';
+    selector.appendChild(document.createTextNode(elem));
+    machines.appendChild(selector);
+    if (!(elem in selectors.machine)) { selectors.machine[elem] = true; }
+    selector.addEventListener('click', e => toggle(e, elem, selectors.machine));
+});
+
+[... new Set(data.map(elem => elem.cluster_size))].sort(
+    (a, b) => ((typeof(b) === 'number') - (typeof(a) === 'number')) || (a - b)).map(elem => {
+    let selector = document.createElement('a');
+    selector.className = 'selector selector-active';
+    selector.appendChild(document.createTextNode(elem));
+    cluster_sizes.appendChild(selector);
+    if (!(elem in selectors.cluster_size)) { selectors.cluster_size[elem] = true; }
+    selector.addEventListener('click', e => toggle(e, elem, selectors.cluster_size));
+});
+
+document.getElementById('select-all-systems').addEventListener('click', e => toggleAll(e, selectors.system));
+document.getElementById('select-all-types').addEventListener('click', e => toggleAll(e, selectors.type));
+document.getElementById('select-all-machines').addEventListener('click', e => toggleAll(e, selectors.machine));
+document.getElementById('select-all-cluster-sizes').addEventListener('click', e => toggleAll(e, selectors.cluster_size));
+
+[...document.getElementById('selectors_run').querySelectorAll('a')].map(elem => elem.addEventListener('click', e => {
+    [...e.target.parentElement.querySelectorAll('a')].map(elem => { elem.className = elem == e.target ? 'selector selector-active' : 'selector' });
+}));
+
+document.getElementById('selector-metric-cold').addEventListener('click', e => { selectors.metric = 'cold'; render(); updateHistory(); });
+document.getElementById('selector-metric-hot').addEventListener('click', e => { selectors.metric = 'hot'; render(); updateHistory(); });
+document.getElementById('selector-metric-load').addEventListener('click', e => { selectors.metric = 'load'; render(); updateHistory(); });
+document.getElementById('selector-metric-size').addEventListener('click', e => { selectors.metric = 'size'; render(); updateHistory(); });
+
+selectors.queries = [...data[0].result.keys()].map(k => true);
+
+function updateSelectors() {
+    [...systems.childNodes].map(elem => { elem.className = selectors.system[elem.innerText] ? 'selector selector-active' : 'selector' });
+    [...types.childNodes].map(elem => { elem.className = selectors.type[elem.innerText] ? 'selector selector-active' : 'selector' });
+    [...machines.childNodes].map(elem => { elem.className = selectors.machine[elem.innerText] ? 'selector selector-active' : 'selector' });
+    [...cluster_sizes.childNodes].map(elem => { elem.className = selectors.cluster_size[elem.innerText] ? 'selector selector-active' : 'selector' });
+
+    [...document.getElementById('selectors_run').querySelectorAll('a')].map(elem => {
+        elem.className = elem.id == 'selector-metric-' + selectors.metric ? 'selector selector-active' : 'selector' });
+
+    [...document.querySelectorAll('.query-checkbox')].map((elem, i) => { elem.checked = selectors.queries[i] });
+}
+
+function clearElement(elem)
+{
+    while (elem.firstChild) {
+        elem.removeChild(elem.lastChild);
+    }
+}
+
+function selectRun(timings) {
+    return selectors.metric == 'cold' ? timings[0] : (timings[1] !== null && timings[2] !== null ? Math.min(timings[1], timings[2]) : null)
+}
+
+function addNote(text) {
+    let note = document.createElement('sup');
+    note.className = 'note';
+    note.appendChild(document.createTextNode('†'));
+
+    let tooltip = document.createElement('span');
+    tooltip.className = 'tooltip tooltip-result';
+    tooltip.appendChild(document.createTextNode(text));
+
+    note.appendChild(tooltip);
+    return note;
+}
+
+function renderSummary(filtered_data) {
+    let table = document.getElementById('summary');
+    clearElement(table);
+
+    /// Generate summary
+
+    /// The algorithm: for each of the queries,
+    /// - if there is a result - take query duration, add 10 ms, and divide it to the corresponding value from the baseline,
+    /// - if there is no result - take the worse query duration across all query runs for this system and multiply by 2.
+    /// Take geometric mean across the queries.
+
+    let summary = {};
+
+    const num_queries = filtered_data[0].result.length;
+
+    const baseline_data = [...filtered_data[0].result.keys()].map(query_num =>
+        [...Array(3).keys()].map(run_num =>
+            Math.min(...filtered_data.filter(elem => !elem.fake).map(elem => elem.result[query_num][run_num]).filter(x => x))));
+
+    const min_load_time = Math.min(...filtered_data.map(elem => elem.load_time).filter(x => x));
+    const min_data_size = Math.min(...filtered_data.map(elem => elem.data_size).filter(x => x));
+
+    let summaries;
+    if (selectors.metric == 'load') {
+        summaries = filtered_data.map(elem => elem.load_time / min_load_time);
+        document.getElementById('time-or-size').innerText = 'time';
+    } else if (selectors.metric == 'size') {
+        summaries = filtered_data.map(elem => elem.data_size / min_data_size);
+        document.getElementById('time-or-size').innerText = 'size';
+    } else {
+        summaries = filtered_data.map(elem => {
+            const fallback_timing = missing_result_penalty * Math.max(missing_result_time, ...elem.result.map(timings => selectRun(timings)));
+
+            let accumulator = 0;
+            let used_queries = 0;
+
+            const no_queries_selected = selectors.queries.filter(x => x).length == 0;
+
+            for (let i = 0; i < num_queries; ++i) {
+                if (no_queries_selected || selectors.queries[i]) {
+                    const curr_timing = selectRun(elem.result[i]) ?? fallback_timing;
+                    const baseline_timing = selectRun(baseline_data[i]);
+                    const ratio = (constant_time_add + curr_timing) / (constant_time_add + baseline_timing);
+                    accumulator += Math.log(ratio);
+                    ++used_queries;
+                }
+            }
+
+            return Math.exp(accumulator / used_queries);
+        });
+        document.getElementById('time-or-size').innerText = 'time';
+    }
+
+    const sorted_indices = [...summaries.keys()].sort((a, b) => summaries[a] - summaries[b]);
+    const max_ratio = summaries[sorted_indices[sorted_indices.length - 1]];
+
+    sorted_indices.map(idx => {
+        const elem = filtered_data[idx];
+
+        if (selectors.metric == 'size' && elem.data_size === null) { return; }
+
+        let tr = document.createElement('tr');
+        tr.className = 'summary-row';
+
+        tr.dataset.system = elem.system;
+
+        let td_name = document.createElement('td');
+        td_name.className = 'summary-name';
+
+        if (!elem.fake) {
+            let link = document.createElement('a');
+            link.appendChild(document.createTextNode(`${elem.system} (${Number.isInteger(elem.cluster_size) && elem.cluster_size > 1 ? elem.cluster_size + '×': ''}${elem.machine})`));
+            link.href = "https://github.com/ClickHouse/ClickBench/blob/main/" + elem.source;
+            td_name.appendChild(link);
+        } else {
+            td_name.appendChild(document.createTextNode(elem.system));
+        }
+
+        if (elem.comment) { td_name.appendChild(addNote(elem.comment)); }
+        td_name.appendChild(document.createTextNode(': '));
+
+        const ratio = summaries[idx];
+        const percentage = summaries[idx] / max_ratio * 100;
+
+        let td_number = document.createElement('td');
+        td_number.className = 'summary-number';
+
+        const text = selectors.metric == 'load' ? (elem.load_time ? `${Math.round(elem.load_time)}s (×${ratio.toFixed(2)})` : 'stateless')
+            :  selectors.metric == 'size' ? `${(elem.data_size / 1024 / 1024 / 1024).toFixed(2)} GiB (×${ratio.toFixed(2)})`
+            : `×${ratio.toFixed(2)}`;
+
+        td_number.appendChild(document.createTextNode(text));
+
+        let td_bar = document.createElement('td');
+        td_bar.className = 'summary-bar-cell';
+
+        let bar = document.createElement('div');
+
+        bar.className = `summary-bar`;
+        bar.style.width = `${percentage}%`;
+
+        td_bar.appendChild(bar);
+
+        tr.appendChild(td_name);
+        tr.appendChild(td_bar);
+        tr.appendChild(td_number);
+        table.appendChild(tr);
+    });
+
+    return [sorted_indices, baseline_data];
+}
+
+function colorize(elem, ratio) {
+    let [r, g, b] = [0, 0, 0];
+
+    /// ratio less than 1 - green
+    /// ratio from 1 to 2 - green to yellow
+    /// ratio from 2 to 10 - yellow to red
+    /// ratio from 10 to 1000 to infinity - red to brown to black
+
+    /// Note: we are using RGB space without proper gamma correction. Read more: https://www.handprint.com/HP/WCL/color1.html
+
+    if (ratio !== null) {
+        if (ratio < 1) {
+            r = 232;
+            g = 255;
+            b = 232;
+        } else if (ratio <= 1) {
+            g = 255;
+        } else if (ratio <= 2) {
+            g = 255;
+            r = (ratio - 1) * 255;
+        } else if (ratio <= 10) {
+            g = (10 - ratio) / 8 * 255;
+            r = 255;
+        } else {
+            r = (1 - ((ratio - 10) / ((ratio - 10) + 1000))) * 255;
+        }
+    }
+
+    if (document.documentElement.getAttribute('data-theme') == 'dark') {
+        r /= 1.5;
+        g /= 1.5;
+        b /= 1.5;
+    }
+
+    elem.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+    if (ratio === null || ratio > 10) {
+        /// This will look better on dark backgrounds
+        elem.style.color = 'white';
+    } else {
+        elem.style.color = 'black';
+    }
+
+    /// The best result is highlighted
+    if (ratio == 1) {
+        elem.style.fontWeight = 'bold';
+    }
+}
+
+function render() {
+    let details_head = document.getElementById('details_head');
+    let details_body = document.getElementById('details_body');
+
+    clearElement(details_head);
+    clearElement(details_body);
+
+    let filtered_data = data.filter(elem =>
+        selectors.system[elem.system] &&
+        selectors.machine[elem.machine] &&
+        selectors.cluster_size[elem.cluster_size] &&
+        elem.tags.filter(type => selectors.type[type]).length > 0);
+
+    let nothing_selected_elem = document.getElementById('nothing-selected');
+    if (filtered_data.length == 0) {
+        nothing_selected_elem.style.display = 'block';
+        [...document.querySelectorAll('.comparison')].map(e => e.style.display = 'none');
+        return;
+    }
+    nothing_selected_elem.style.display = 'none';
+    [...document.querySelectorAll('.comparison')].map(e => e.style.display = 'block');
+
+    if (selectors.metric == 'size') {
+        filtered_data = [...filtered_data, ...additional_data_size_points];
+    }
+
+    let [sorted_indices, baseline_data] = renderSummary(filtered_data);
+    sorted_indices = sorted_indices.filter(idx => !filtered_data[idx].fake);
+
+    /// Generate details
+
+    /// Global checkbox
+    {
+        let th_checkbox = document.createElement('th');
+        let checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = true;
+        checkbox.addEventListener('change', e => {
+            [...document.querySelectorAll('.query-checkbox')].map(elem => { elem.checked = e.target.checked });
+            selectors.queries.map((_, i) => { selectors.queries[i] = e.target.checked });
+            renderSummary(filtered_data);
+            updateHistory();
+        });
+        th_checkbox.appendChild(checkbox);
+        details_head.appendChild(th_checkbox);
+        details_head.appendChild(document.createElement('th'));
+    }
+
+    /// Table header
+    sorted_indices.map(idx => {
+        const elem = filtered_data[idx];
+        let th = document.createElement('th');
+        th.appendChild(document.createTextNode(`${elem.system}\n(${Number.isInteger(elem.cluster_size) && elem.cluster_size > 1 ? elem.cluster_size + '×': ''}${elem.machine})`));
+        th.className = 'th-entry';
+        th.dataset.system = elem.system;
+        details_head.appendChild(th);
+    });
+
+    /// Load times
+    {
+        let tr = document.createElement('tr');
+        tr.className = 'shadow';
+
+        let td_title = document.createElement('td');
+        td_title.colSpan = 2;
+        td_title.appendChild(document.createTextNode('Load time: '));
+        tr.appendChild(td_title);
+
+        sorted_indices.map(idx => {
+            const curr_timing = filtered_data[idx].load_time;
+            const baseline_timing = Math.min(...filtered_data.map(elem => elem.load_time).filter(x => x));
+            const ratio = curr_timing / baseline_timing;
+
+            let td = document.createElement('td');
+            td.appendChild(document.createTextNode(curr_timing ? `${Math.round(curr_timing)}s (×${ratio.toFixed(2)})` : '0'));
+
+            colorize(td, ratio);
+            tr.appendChild(td);
+        });
+
+        details_body.appendChild(tr);
+    }
+
+    /// Data sizes
+    {
+        let tr = document.createElement('tr');
+        tr.className = 'shadow';
+
+        let td_title = document.createElement('td');
+        td_title.colSpan = 2;
+        td_title.appendChild(document.createTextNode('Data size: '));
+        tr.appendChild(td_title);
+
+        sorted_indices.map(idx => {
+            const curr_size = filtered_data[idx].data_size;
+            const baseline_size = Math.min(...filtered_data.map(elem => elem.data_size).filter(x => x));
+            const ratio = curr_size !== null ? curr_size / baseline_size : null;
+
+            let td = document.createElement('td');
+            td.appendChild(document.createTextNode(curr_size !== null ? `${(curr_size / 1024 / 1024 / 1024).toFixed(2)} GiB (×${ratio.toFixed(2)})` : '☠'));
+
+            colorize(td, ratio);
+            tr.appendChild(td);
+        });
+
+        details_body.appendChild(tr);
+    }
+
+    /// Query runtimes
+    const num_queries = filtered_data[0].result.length;
+
+    for (let query_num = 0; query_num < num_queries; ++query_num) {
+        let tr = document.createElement('tr');
+        tr.className = 'shadow';
+
+        let td_checkbox = document.createElement('td');
+        let checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'query-checkbox';
+        checkbox.checked = selectors.queries[query_num];
+        checkbox.addEventListener('change', e => {
+            selectors.queries[query_num] = e.target.checked;
+            renderSummary(filtered_data);
+            updateHistory();
+        });
+        td_checkbox.appendChild(checkbox);
+        tr.appendChild(td_checkbox);
+
+        let td_query_num = document.createElement('td');
+        td_query_num.className = 'note';
+        td_query_num.appendChild(document.createTextNode(`Q${query_num}. `));
+
+        let tooltip = document.createElement('span');
+        tooltip.className = 'tooltip tooltip-query';
+        tooltip.appendChild(document.createTextNode(`Query ${query_num}: ${queries[query_num]}`));
+        td_query_num.appendChild(tooltip);
+
+        tr.appendChild(td_query_num);
+
+        sorted_indices.map(idx => {
+            const curr_timing = selectRun(filtered_data[idx].result[query_num]);
+            const baseline_timing = selectRun(baseline_data[query_num]);
+            const ratio = curr_timing !== null ? (constant_time_add + curr_timing) / (constant_time_add + baseline_timing) : null;
+
+            let td = document.createElement('td');
+            td.appendChild(document.createTextNode(curr_timing !== null ? `${curr_timing}s (×${ratio.toFixed(2)})` : '☠'));
+
+            colorize(td, ratio);
+            tr.appendChild(td);
+        });
+
+        details_body.appendChild(tr);
+    }
+}
+
+function updateHistory() {
+    history.pushState(selectors, '',
+        window.location.pathname + (window.location.search || '') + '#' + btoa(JSON.stringify(selectors)));
+}
+
+window.onpopstate = function(event) {
+    if (!event.state) { return; }
+    selectors = event.state;
+    render();
+    updateSelectors();
+};
+
+if (window.location.hash) {
+    try {
+        selectors = JSON.parse(atob(window.location.hash.substring(1)));
+    } catch {}
+}
+
+render();
+updateSelectors();
+
+</script>
+</body>
+</html>
