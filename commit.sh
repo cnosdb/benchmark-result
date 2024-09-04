@@ -27,6 +27,9 @@ fi
 # 复制文件到目标目录
 cp "$file_path" "$directory_path"
 
+# 更新git仓库
+git pull
+
 # 添加文件到git
 git add .
 
